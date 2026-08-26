@@ -1,0 +1,20 @@
+{
+  "name": "substrate-studio",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Substrate — an independent technology and product studio. Static React + Vite site.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4173"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.0",
+    "vite": "^8.2.2"
+  }
+}
