@@ -1,13 +1,10 @@
+import { Route, Routes } from 'react-router-dom'
 import Navbar from './sections/Navbar'
-import Hero from './sections/Hero'
-import Terminal from './sections/Terminal'
-import Projects from './sections/Projects'
-import About from './sections/About'
-import Experiments from './sections/Experiments'
-import Capabilities from './sections/Capabilities'
-import Process from './sections/Process'
-import CTA from './sections/CTA'
 import Footer from './sections/Footer'
+import ScrollManager from './components/ScrollManager'
+import Home from './pages/Home'
+import BookDemo from './pages/BookDemo'
+import NotFound from './pages/NotFound'
 
 export default function App() {
   return (
@@ -16,17 +13,15 @@ export default function App() {
         Skip to content
       </a>
 
+      <ScrollManager />
       <Navbar />
 
       <main id="main">
-        <Hero />
-        <Terminal />
-        <Projects />
-        <About />
-        <Experiments />
-        <Capabilities />
-        <Process />
-        <CTA />
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/book-a-demo" element={<BookDemo />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </main>
 
       <Footer />

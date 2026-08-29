@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { brand, navLinks, socials } from '../data/site'
 import { ArrowUpRight } from '../components/Icons'
 import './Footer.css'
@@ -9,9 +10,9 @@ export default function Footer() {
     <footer className="footer">
       <div className="shell footer__inner">
         <div className="footer__brand">
-          <a className="footer__wordmark" href="#top">
+          <Link className="footer__wordmark" to="/">
             {brand.name}
-          </a>
+          </Link>
           <p className="footer__descriptor">{brand.descriptor}</p>
         </div>
 
@@ -20,9 +21,9 @@ export default function Footer() {
           <ul>
             {navLinks.map((link) => (
               <li key={link.href}>
-                <a className="footer__link" href={link.href}>
+                <Link className="footer__link" to={`/${link.href}`}>
                   {link.label}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>
@@ -47,6 +48,10 @@ export default function Footer() {
           <a className="footer__mail" href={`mailto:${brand.email}`}>
             {brand.email}
           </a>
+          <Link className="footer__link footer__demo" to="/book-a-demo">
+            Book a demo
+            <ArrowUpRight width="12" height="12" />
+          </Link>
           <p className="mono footer__where">{brand.locations.join(' — ')}</p>
         </div>
       </div>
@@ -58,9 +63,13 @@ export default function Footer() {
         <p className="mono footer__colophon">
           React · Vite · No trackers · {brand.locations[0]}
         </p>
-        <a className="mono footer__top" href="#top">
+        <button
+          type="button"
+          className="mono footer__top"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        >
           Back to top
-        </a>
+        </button>
       </div>
     </footer>
   )

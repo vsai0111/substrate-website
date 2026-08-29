@@ -138,3 +138,21 @@
     display: block;
   }
 }
+
+/* .footer__link is inline-flex, which would sit this on the same line as
+   the email address. It needs its own row. */
+.footer__demo {
+  display: flex;
+  width: fit-content;
+  margin-top: var(--s-3);
+  color: var(--ink);
+}
+
+.footer__demo svg {
+  color: var(--ink-faint);
+}
+
+/* Back-to-top is a button now that "#top" is not a route-safe target. */
+.footer__top {
+  cursor: pointer;
+}

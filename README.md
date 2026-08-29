@@ -1,12 +1,24 @@
 # SUBSTRATE — Technology & Product Studio
 
-A production-ready, static single-page marketing site for a fictional technology and
-product studio. Built as a **React + Vite + JavaScript** application with **zero runtime
-dependencies beyond React itself** — no UI kit, no animation library, no icon package,
-no router, no backend, no database, no external API, and no network calls at runtime.
+A marketing site for a fictional technology and product studio, built as a
+**React + Vite + JavaScript** application — no UI kit, no animation library, no icon
+package. The marketing pages are entirely static and make no network calls.
 
-The site is designed to be built with `npm run build` and served as static files from
-S3 + CloudFront (or any static host).
+One route is not static: **`/book-a-demo`** submits to a small Express API backed by
+MySQL, and lists the most recent submissions. See
+**[docs/BOOK-A-DEMO.md](docs/BOOK-A-DEMO.md)** for that feature's architecture, API
+contract, database schema and deployment steps.
+
+```
+/                 static  — the studio site
+/book-a-demo      dynamic — form + live list, via /api -> Express -> MySQL
+```
+
+> **Deployment note.** `vite.config.js` uses `base: '/'`, so the host **must** serve
+> `index.html` for unknown paths or a refresh on `/book-a-demo` will 404, and it must
+> proxy `/api` to the Node process. Both are in
+> [`deploy/nginx.conf`](deploy/nginx.conf); the GitHub Actions workflow does not yet
+> deploy the API itself.
 
 > Substrate is an invented brand. All copy, project names, statistics and social links
 > are fictional placeholder content.
@@ -16,11 +28,11 @@ S3 + CloudFront (or any static host).
 ## 1. Install dependencies
 
 ```bash
-npm install
+npm install                  # frontend
+npm install --prefix server  # API (only needed for /book-a-demo)
 ```
 
-Requires Node.js 20.19+ (developed on Node 24). Installs React, React DOM, Vite and the
-Vite React plugin — 22 packages total, 0 vulnerabilities.
+Requires Node.js 20.19+ (developed on Node 24). 0 vulnerabilities in both.
 
 ## 2. Run locally
 
@@ -28,7 +40,17 @@ Vite React plugin — 22 packages total, 0 vulnerabilities.
 npm run dev
 ```
 
-Serves the app at <http://localhost:5173> with hot module replacement.
+Serves the app at <http://localhost:5173> with hot module replacement. The marketing
+pages work on their own; for `/book-a-demo` also run the API in a second terminal:
+
+```bash
+cp server/.env.example server/.env   # fill in DB_PASSWORD
+npm run migrate --prefix server      # creates the table, idempotent
+npm run dev --prefix server          # API on :4000
+```
+
+Vite proxies `/api` to `:4000`, matching how nginx proxies it in production, so the
+frontend never needs an API base URL.
 
 ## 3. Create the production build
 
@@ -215,9 +237,26 @@ a staging environment.**
 ## Project structure
 
 ```
+server/                       Express + MySQL API (its own package.json)
+├── src/index.js              App, CORS, health check, error handler
+├── src/db.js                 mysql2 connection pool
+├── src/migrate.js            Applies schema.sql to the existing database
+├── src/schema.sql            demo_requests table
+├── src/routes/demoRequests.js  GET + POST /api/demo-requests
+└── src/lib/                  validate.js, rateLimit.js
+
+deploy/
+├── nginx.conf                SPA fallback + /api proxy
+└── substrate-api.service     systemd unit for the API
+
 src/
-├── main.jsx                  React root; imports the global stylesheets
-├── App.jsx                   Composes the sections; no logic beyond ordering
+├── main.jsx                  React root; BrowserRouter + global stylesheets
+├── App.jsx                   Routes, shared Navbar/Footer, scroll manager
+├── pages/
+│   ├── Home.jsx              The studio sections, unchanged
+│   ├── BookDemo.jsx/css      Form page + Recently Submitted Users
+│   └── NotFound.jsx/css      404 for unknown routes
+├── lib/api.js                fetch wrapper for /api
 ├── data/
 │   └── site.js               All copy and content in one place
 ├── hooks/
@@ -225,13 +264,15 @@ src/
 │   ├── useReducedMotion.js   Tracks prefers-reduced-motion, reacts to live changes
 │   └── useScrollSpy.js       Highlights the nav link for the section in view
 ├── components/
+│   ├── RecentRequests.jsx/css  Live list: loading, empty, error, populated
+│   ├── ScrollManager.jsx     Scroll to top / to #hash on route change
 │   ├── Reveal.jsx            Reveal wrapper, preserves the semantic element
 │   ├── SectionHeader.jsx/css Repeating index + label + note header
 │   ├── ProjectVisual.jsx/css Five generative SVG placeholders
 │   ├── Marquee.jsx/css       Seamless ticker
 │   └── Icons.jsx             Five hand-rolled inline SVG icons
 ├── sections/
-│   ├── Navbar.jsx/css        Fixed nav, scroll-spy, mobile panel with focus trap
+│   ├── Navbar.jsx/css        Fixed nav, route-aware links, mobile panel with focus trap
 │   ├── Hero.jsx/css          Editorial display type, masked line reveal
 │   ├── Terminal.jsx/css      Interactive shell (boot, history, tab-completion)
 │   ├── Projects.jsx/css      Accordion project rows

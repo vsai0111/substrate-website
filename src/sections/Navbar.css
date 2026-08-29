@@ -226,3 +226,18 @@
     display: none;
   }
 }
+
+.nav__cta.is-current {
+  background: var(--ink);
+  color: var(--ground);
+  border-color: var(--ink);
+}
+
+/* The demo CTA is the last row of the mobile menu. */
+.nav__panel-cta a {
+  color: var(--ink);
+}
+
+.nav__panel-cta .nav__panel-index {
+  color: var(--signal);
+}

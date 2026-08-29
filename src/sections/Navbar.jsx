@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { brand, navLinks } from '../data/site'
 import { useScrollSpy } from '../hooks/useScrollSpy'
 import { Close, MenuLines } from '../components/Icons'
@@ -10,8 +11,12 @@ export default function Navbar() {
   const panelRef = useRef(null)
   const toggleRef = useRef(null)
 
+  const { pathname } = useLocation()
+  const isHome = pathname === '/'
+
   const ids = useMemo(() => navLinks.map((l) => l.href.slice(1)), [])
-  const active = useScrollSpy(ids)
+  // Section highlighting only means anything on the page that has the sections.
+  const active = useScrollSpy(isHome ? ids : [])
 
   // Hairline + backdrop only appear once the hero has started to leave.
   useEffect(() => {
@@ -72,34 +77,49 @@ export default function Navbar() {
   return (
     <header className={`nav ${scrolled ? 'is-scrolled' : ''}`}>
       <div className="nav__inner shell">
-        <a className="nav__brand" href="#top" aria-label={`${brand.name} — back to top`}>
+        <Link className="nav__brand" to="/" aria-label={`${brand.name} — home`}>
           <span className="nav__mark" aria-hidden="true">
             <span />
             <span />
             <span />
           </span>
           <span className="nav__wordmark">{brand.name}</span>
-        </a>
+        </Link>
 
         <nav className="nav__links" aria-label="Primary">
           <ul>
-            {navLinks.map((link) => (
-              <li key={link.href}>
-                <a
-                  className={`nav__link mono ${active === link.href.slice(1) ? 'is-active' : ''}`}
-                  href={link.href}
-                  aria-current={active === link.href.slice(1) ? 'true' : undefined}
-                >
-                  <span className="nav__link-text">{link.label}</span>
-                </a>
-              </li>
-            ))}
+            {navLinks.map((link) => {
+              const isActive = active === link.href.slice(1)
+              const className = `nav__link mono ${isActive ? 'is-active' : ''}`
+
+              return (
+                <li key={link.href}>
+                  {isHome ? (
+                    <a
+                      className={className}
+                      href={link.href}
+                      aria-current={isActive ? 'true' : undefined}
+                    >
+                      <span className="nav__link-text">{link.label}</span>
+                    </a>
+                  ) : (
+                    <Link className={className} to={`/${link.href}`}>
+                      <span className="nav__link-text">{link.label}</span>
+                    </Link>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         </nav>
 
-        <a className="nav__cta mono" href="#contact">
-          Start a project
-        </a>
+        <Link
+          className={`nav__cta mono ${pathname === '/book-a-demo' ? 'is-current' : ''}`}
+          to="/book-a-demo"
+          aria-current={pathname === '/book-a-demo' ? 'page' : undefined}
+        >
+          Book a demo
+        </Link>
 
         <button
           ref={toggleRef}
@@ -124,12 +144,28 @@ export default function Navbar() {
           <ul className="nav__panel-list">
             {navLinks.map((link, i) => (
               <li key={link.href} style={{ '--i': i }}>
-                <a href={link.href} onClick={close}>
-                  <span className="mono nav__panel-index">0{i + 1}</span>
-                  <span className="nav__panel-label">{link.label}</span>
-                </a>
+                {isHome ? (
+                  <a href={link.href} onClick={close}>
+                    <span className="mono nav__panel-index">0{i + 1}</span>
+                    <span className="nav__panel-label">{link.label}</span>
+                  </a>
+                ) : (
+                  <Link to={`/${link.href}`} onClick={close}>
+                    <span className="mono nav__panel-index">0{i + 1}</span>
+                    <span className="nav__panel-label">{link.label}</span>
+                  </Link>
+                )}
               </li>
             ))}
+
+            <li className="nav__panel-cta" style={{ '--i': navLinks.length }}>
+              <Link to="/book-a-demo" onClick={close}>
+                <span className="mono nav__panel-index">
+                  0{navLinks.length + 1}
+                </span>
+                <span className="nav__panel-label">Book a demo</span>
+              </Link>
+            </li>
           </ul>
         </nav>
         <div className="nav__panel-foot">

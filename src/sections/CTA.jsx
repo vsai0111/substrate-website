@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { brand } from '../data/site'
 import { useReveal } from '../hooks/useReveal'
 import Reveal from '../components/Reveal'
@@ -30,10 +31,18 @@ export default function CTA() {
         </h2>
 
         <Reveal className="cta__actions" delay={200}>
-          <a className="cta__mail" href={`mailto:${brand.email}`}>
-            <span className="cta__mail-text">{brand.email}</span>
-            <ArrowUpRight width="20" height="20" />
-          </a>
+          <div className="cta__primary">
+            <Link className="btn cta__book" to="/book-a-demo">
+              <span>Book a demo</span>
+              <span className="btn__line" aria-hidden="true" />
+            </Link>
+
+            <a className="cta__mail" href={`mailto:${brand.email}`}>
+              <span className="cta__mail-text">{brand.email}</span>
+              <ArrowUpRight width="20" height="20" />
+            </a>
+          </div>
+
           <p className="cta__note">
             Tell us what is broken, what you are building, or what you are not sure about yet.
             We reply within two working days.
