@@ -56,7 +56,7 @@ export const projects = [
   },
   {
     id: '03',
-    name: 'CADENCE',
+    name: 'BATSY',
     tagline: 'Automation infrastructure for high-volume editorial operations',
     description:
       'Ingest, classify, route, publish. We replaced eleven manual handoffs with an event pipeline and a control surface an editor can actually read.',
