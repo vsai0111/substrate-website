@@ -5,6 +5,10 @@
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now substrate-api
 #   sudo systemctl status substrate-api
+#
+# WorkingDirectory points at a symlink that the deploy pipeline flips to the
+# new release. systemd re-resolves it on every restart, so a deploy is an
+# atomic swap and a rollback is one `ln -sfn` away.
 
 [Unit]
 Description=Substrate demo-request API
@@ -15,7 +19,7 @@ Wants=mysql.service
 Type=simple
 User=www-data
 
-WorkingDirectory=/var/www/substrate-backend/repo/server
+WorkingDirectory=/var/www/substrate-backend/current
 
 # Credentials live outside the repository.
 EnvironmentFile=/etc/substrate/api.env

@@ -199,3 +199,49 @@ sudo systemctl restart substrate-api
 
 Until the workflow gains those steps (sketched in `docs/BOOK-A-DEMO.md` §6c), the API
 is deployed by hand.
+
+---
+
+## 9. Release directories (optional one-time setup)
+
+The backend pipeline now unpacks each deploy into a timestamped release and flips
+a `current` symlink, instead of deleting and rebuilding in place.
+
+**This is optional — the pipeline bootstraps itself.** `mkdir -p` creates the
+release directory, and the symlink is created *before* `systemctl restart`, so a
+first run against a host that has never seen `current` works fine.
+
+Doing it by hand first buys two things: a rollback target on that very first
+deploy, and a chance to confirm the new unit starts before CI depends on it.
+
+```bash
+sudo mkdir -p /var/www/substrate-backend/releases
+
+# Seed the first release from whatever is deployed today
+sudo cp -r /var/www/substrate-backend/repo/server \
+           /var/www/substrate-backend/releases/initial
+sudo ln -sfn /var/www/substrate-backend/releases/initial \
+             /var/www/substrate-backend/current
+
+# The unit now runs from the symlink
+sudo cp /var/www/substrate-backend/repo/deploy/substrate-api.service \
+        /etc/systemd/system/substrate-api.service
+sudo systemctl daemon-reload
+sudo systemctl restart substrate-api
+curl -fsS http://127.0.0.1:4000/api/health; echo
+```
+
+From then on every push to `server/**` ships a prebuilt `node_modules`, so nothing
+is installed on the instance.
+
+### Rolling back
+
+```bash
+ls -1dt /var/www/substrate-backend/releases/*/     # newest first
+sudo ln -sfn /var/www/substrate-backend/releases/<timestamp> \
+             /var/www/substrate-backend/current
+sudo systemctl restart substrate-api
+```
+
+The pipeline keeps the three most recent releases and rolls back automatically if
+the health check fails.
