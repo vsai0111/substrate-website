@@ -7,7 +7,8 @@ package. The marketing pages are entirely static and make no network calls.
 One route is not static: **`/book-a-demo`** submits to a small Express API backed by
 MySQL, and lists the most recent submissions. See
 **[docs/BOOK-A-DEMO.md](docs/BOOK-A-DEMO.md)** for that feature's architecture, API
-contract, database schema and deployment steps.
+contract and database schema, and **[docs/EC2-RUNBOOK.md](docs/EC2-RUNBOOK.md)** for the
+step-by-step first deployment on the EC2 host.
 
 ```
 /                 static  — the studio site
