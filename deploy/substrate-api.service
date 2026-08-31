@@ -1,4 +1,4 @@
-# systemd unit for the demo-request API.
+# systemd unit for the Substrate demo-request API.
 #
 # Install:
 #   sudo cp deploy/substrate-api.service /etc/systemd/system/
@@ -14,13 +14,17 @@ Wants=mysql.service
 [Service]
 Type=simple
 User=www-data
-WorkingDirectory=/var/www/substrate-website/server
-# Credentials live in this file, owned by root and readable only by the
-# service user. Never bake them into the unit or the repo.
+
+WorkingDirectory=/var/www/substrate-backend/repo/server
+
+# Credentials live outside the repository.
 EnvironmentFile=/etc/substrate/api.env
+
 ExecStart=/usr/bin/node src/index.js
+
 Restart=on-failure
 RestartSec=5
+
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
