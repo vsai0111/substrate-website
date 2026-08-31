@@ -40,6 +40,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "deploy/substrate-api.service"
           target: "/tmp"
+          strip_components: 1
 
       - name: Activate backend deployment
         uses: appleboy/ssh-action@v1.0.3
@@ -64,5 +65,5 @@ jobs:
 
             curl -fsS http://127.0.0.1:4000/api/health
 
-            rm -rf /tmp/substrate-backend
-            rm -f /tmp/substrate-api.service
+            sudo rm -rf /tmp/substrate-backend
+            sudo rm -f /tmp/substrate-api.service
