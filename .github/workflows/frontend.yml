@@ -13,6 +13,12 @@ on:
       - "vite.config.*"
       - ".github/workflows/frontend.yml"
 
+# Two syncs interleaving on one bucket could leave index.html pointing at
+# assets the other run has just deleted.
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -25,12 +31,41 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
+      # VITE_API_BASE_URL is consumed by Vite at BUILD time - it is baked into
+      # the bundle here and cannot be changed afterwards by any S3 or EC2
+      # setting. Temporary split-origin only: once CloudFront serves the site
+      # and /api from one origin, clear this variable and the frontend goes
+      # back to same-origin relative requests with no code change.
       - name: Build website
-        run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: |
+          if [ -z "$VITE_API_BASE_URL" ]; then
+            echo "::error::Repository variable VITE_API_BASE_URL is not set."
+            echo "While the frontend is on S3 and the API is on EC2, the build"
+            echo "must know the API origin (e.g. http://<ec2-public-ip>)."
+            echo "Set it under Settings > Secrets and variables > Actions > Variables."
+            exit 1
+          fi
+          echo "Building against API origin: $VITE_API_BASE_URL"
+          npm run build
+
+      # Cheap insurance against a silently same-origin bundle reaching S3.
+      - name: Verify the API origin was compiled in
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: |
+          if grep -rqF "$VITE_API_BASE_URL" dist/assets/*.js; then
+            echo "OK: $VITE_API_BASE_URL is present in the built bundle."
+          else
+            echo "::error::The built bundle does not contain $VITE_API_BASE_URL."
+            exit 1
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -39,6 +74,19 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Deploy to S3
+      # Order matters. Hashed assets go up first so that when the new
+      # index.html lands, everything it references already exists.
+      - name: Deploy assets to S3
         run: |
-          aws s3 sync dist/ s3://${{ secrets.S3_BUCKET }} --delete
+          aws s3 sync dist/assets/ s3://${{ secrets.S3_BUCKET }}/assets/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable"
+
+      # index.html is not content-hashed, so it must never be cached, or
+      # browsers keep loading a stale document pointing at deleted assets.
+      - name: Deploy index.html and root files to S3
+        run: |
+          aws s3 sync dist/ s3://${{ secrets.S3_BUCKET }}/ \
+            --delete \
+            --exclude "assets/*" \
+            --cache-control "public,max-age=0,must-revalidate"
