@@ -40,6 +40,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "deploy/substrate-api.service"
           target: "/tmp"
+          strip_components: 1
 
       - name: Activate backend deployment
         uses: appleboy/ssh-action@v1.0.3
@@ -89,6 +90,7 @@ jobs:
               http://127.0.0.1:4000/api/health
 
             echo
+
             echo "=== Backend deployment successful ==="
 
             echo "=== Cleaning temporary files ==="
