@@ -40,7 +40,6 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "deploy/substrate-api.service"
           target: "/tmp"
-          strip_components: 1
 
       - name: Activate backend deployment
         uses: appleboy/ssh-action@v1.0.3
@@ -48,22 +47,51 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 15m
           script: |
-            sudo rm -rf /var/www/substrate-backend/repo/server/*
-            sudo cp -r /tmp/substrate-backend/* /var/www/substrate-backend/repo/server/
+            set -e
 
-            sudo cp /tmp/substrate-api.service /etc/systemd/system/substrate-api.service
+            echo "=== Deploying backend files ==="
+
+            sudo find /var/www/substrate-backend/repo/server \
+              -mindepth 1 -maxdepth 1 \
+              -exec rm -rf -- {} +
+
+            sudo cp -a /tmp/substrate-backend/. \
+              /var/www/substrate-backend/repo/server/
+
+            echo "=== Installing systemd service ==="
+
+            sudo cp /tmp/substrate-api.service \
+              /etc/systemd/system/substrate-api.service
+
+            echo "=== Installing production dependencies ==="
 
             cd /var/www/substrate-backend/repo/server
 
-            sudo npm ci --omit=dev
+            CI=true timeout 10m sudo npm ci \
+              --omit=dev \
+              --no-audit \
+              --no-fund
+
+            echo "=== Restarting backend ==="
 
             sudo systemctl daemon-reload
             sudo systemctl restart substrate-api
 
+            echo "=== Waiting for API ==="
+
             sleep 3
 
-            curl -fsS http://127.0.0.1:4000/api/health
+            echo "=== Checking API health ==="
+
+            curl -fsS --max-time 10 \
+              http://127.0.0.1:4000/api/health
+
+            echo
+            echo "=== Backend deployment successful ==="
+
+            echo "=== Cleaning temporary files ==="
 
             sudo rm -rf /tmp/substrate-backend
             sudo rm -f /tmp/substrate-api.service

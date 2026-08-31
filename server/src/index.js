@@ -1,4 +1,3 @@
-// CI/CD deployment test
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
