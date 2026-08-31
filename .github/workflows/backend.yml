@@ -1,0 +1,68 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "server/**"
+      - "deploy/substrate-api.service"
+      - ".github/workflows/backend.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Deploy backend to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "server/*"
+          target: "/tmp/substrate-backend"
+          strip_components: 1
+
+      - name: Deploy systemd service
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "deploy/substrate-api.service"
+          target: "/tmp"
+
+      - name: Activate backend deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            sudo rm -rf /var/www/substrate-backend/repo/server/*
+            sudo cp -r /tmp/substrate-backend/* /var/www/substrate-backend/repo/server/
+
+            sudo cp /tmp/substrate-api.service /etc/systemd/system/substrate-api.service
+
+            cd /var/www/substrate-backend/repo/server
+
+            sudo npm ci --omit=dev
+
+            sudo systemctl daemon-reload
+            sudo systemctl restart substrate-api
+
+            sleep 3
+
+            curl -fsS http://127.0.0.1:4000/api/health
+
+            rm -rf /tmp/substrate-backend
+            rm -f /tmp/substrate-api.service
