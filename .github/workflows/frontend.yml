@@ -36,36 +36,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # VITE_API_BASE_URL is consumed by Vite at BUILD time - it is baked into
-      # the bundle here and cannot be changed afterwards by any S3 or EC2
-      # setting. Temporary split-origin only: once CloudFront serves the site
-      # and /api from one origin, clear this variable and the frontend goes
-      # back to same-origin relative requests with no code change.
+      # Production is same-origin: CloudFront serves the site and routes
+      # /api/* to EC2, so the frontend uses relative /api paths and needs no
+      # API origin at build time. VITE_API_BASE_URL is still honoured by
+      # src/lib/api.js if it is ever set locally, but CI must not set it.
       - name: Build website
-        env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
-        run: |
-          if [ -z "$VITE_API_BASE_URL" ]; then
-            echo "::error::Repository variable VITE_API_BASE_URL is not set."
-            echo "While the frontend is on S3 and the API is on EC2, the build"
-            echo "must know the API origin (e.g. http://<ec2-public-ip>)."
-            echo "Set it under Settings > Secrets and variables > Actions > Variables."
-            exit 1
-          fi
-          echo "Building against API origin: $VITE_API_BASE_URL"
-          npm run build
+        run: npm run build
 
-      # Cheap insurance against a silently same-origin bundle reaching S3.
-      - name: Verify the API origin was compiled in
-        env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+      # Inverse of the old guard: an absolute API origin in the bundle would
+      # mean mixed content on the HTTPS site, so fail rather than ship it.
+      - name: Verify the bundle is same-origin
         run: |
-          if grep -rqF "$VITE_API_BASE_URL" dist/assets/*.js; then
-            echo "OK: $VITE_API_BASE_URL is present in the built bundle."
-          else
-            echo "::error::The built bundle does not contain $VITE_API_BASE_URL."
+          if grep -rqE "https?://([0-9]{1,3}\.){3}[0-9]{1,3}|https?://api\." dist/assets/*.js; then
+            echo "::error::The bundle contains an absolute API origin. Production must call /api on its own origin."
+            grep -roE "https?://[^\"\`,)]{0,45}" dist/assets/*.js | sort -u | head -20
             exit 1
           fi
+          echo "OK: no absolute API origin - requests resolve against the CloudFront domain."
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -90,3 +77,12 @@ jobs:
             --delete \
             --exclude "assets/*" \
             --cache-control "public,max-age=0,must-revalidate"
+
+      # Optional. The sync above already sets index.html to must-revalidate,
+      # and CloudFront honours it (responses show "RefreshHit"), so a deploy
+      # reaches users without this. It is kept as a belt-and-braces step and
+      # is skipped when the distribution id is not configured.
+      - name: Invalidate CloudFront index.html
+        if: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID != '' }}
+        run: |
+          aws cloudfront create-invalidation --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/index.html"

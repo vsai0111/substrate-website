@@ -2,8 +2,9 @@
  * Thin fetch wrapper for the demo-request API.
  *
  * Requests are same-origin by default: Vite proxies /api in development and
- * nginx proxies it in production, so no base URL is needed. VITE_API_BASE_URL
- * is available as an override for split-origin deployments.
+ * CloudFront routes /api/* to the EC2 origin in production, so no base URL is
+ * needed. VITE_API_BASE_URL remains available as an override for local work
+ * against a remote API; CI never sets it.
  */
 const BASE = import.meta.env.VITE_API_BASE_URL || ''
 
