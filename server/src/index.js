@@ -1,3 +1,4 @@
+// CI/CD deployment test
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
@@ -7,10 +8,8 @@ import { demoRequests } from './routes/demoRequests.js'
 const app = express()
 const PORT = Number(process.env.PORT || 4000)
 
-// Two proxies sit in front of the app: CloudFront, then nginx. Each appends
-// to X-Forwarded-For, so Express must skip both to reach the real client.
-// At 1 it stopped at the CloudFront edge address and the rate limiter keyed
-// every visitor behind one edge to the same bucket.
+// Behind nginx the client IP arrives in X-Forwarded-For; without this the
+// rate limiter would see every request as coming from the proxy.
 app.set('trust proxy', 2)
 app.disable('x-powered-by')
 
