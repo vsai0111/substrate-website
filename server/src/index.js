@@ -7,9 +7,11 @@ import { demoRequests } from './routes/demoRequests.js'
 const app = express()
 const PORT = Number(process.env.PORT || 4000)
 
-// Behind nginx the client IP arrives in X-Forwarded-For; without this the
-// rate limiter would see every request as coming from the proxy.
-app.set('trust proxy', 1)
+// Two proxies sit in front of the app: CloudFront, then nginx. Each appends
+// to X-Forwarded-For, so Express must skip both to reach the real client.
+// At 1 it stopped at the CloudFront edge address and the rate limiter keyed
+// every visitor behind one edge to the same bucket.
+app.set('trust proxy', 2)
 app.disable('x-powered-by')
 
 const origins = (process.env.CORS_ORIGINS || '')
