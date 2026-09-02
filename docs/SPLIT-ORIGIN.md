@@ -1,5 +1,22 @@
 # Temporary split-origin setup (S3 frontend + EC2 API)
 
+> **Historical — this does not describe the current production architecture.**
+>
+> This document covers the split-origin architecture used during development,
+> when the frontend was served directly from the S3 website endpoint and the
+> browser called the EC2 API on a second origin.
+>
+> Production now uses **CloudFront as the single public entry point**:
+>
+> - CloudFront serves the frontend from S3 through OAC
+> - CloudFront routes `/api/*` to the EC2 backend
+> - the site and the API are therefore same-origin
+>
+> The steps under *What changes when CloudFront arrives* at the end of this
+> document have all been carried out — they are a record, not a to-do list.
+> The CORS matching rules and the S3 endpoint comparison below still describe
+> how those mechanisms behave, and are kept for reference.
+
 CloudFront is pending AWS account verification. Until then the frontend is served
 from S3 and the API from EC2 — two different origins — so the browser needs to be
 told where the API lives, and the API needs to be told which page origin may read
