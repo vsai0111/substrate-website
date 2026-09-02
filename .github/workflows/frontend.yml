@@ -38,8 +38,7 @@ jobs:
 
       # Production is same-origin: CloudFront serves the site and routes
       # /api/* to EC2, so the frontend uses relative /api paths and needs no
-      # API origin at build time. VITE_API_BASE_URL is still honoured by
-      # src/lib/api.js if it is ever set locally, but CI must not set it.
+      # API origin at build time.
       - name: Build website
         run: npm run build
 
