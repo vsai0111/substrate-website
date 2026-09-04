@@ -54,8 +54,8 @@ try {
     console.error('[migrate] finished, but demo_requests is missing')
     process.exitCode = 1
   } else {
-    const [[{ rows }]] = await conn.query('SELECT COUNT(*) AS rows FROM demo_requests')
-    console.log(`[migrate] ok - \`${dbName}\`.demo_requests is ready (${rows} row(s))`)
+    const [[{ rows_count }]] = await conn.query('SELECT COUNT(*) AS rows_count FROM demo_requests')
+    console.log(`[migrate] ok - \`${dbName}\`.demo_requests is ready (${rows_count} row(s))`)
   }
 } catch (err) {
   console.error('[migrate] failed:', err.message)

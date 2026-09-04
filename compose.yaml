@@ -1,0 +1,59 @@
+services:
+  mysql:
+    image: mysql:8.0
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: substrate_db
+      MYSQL_USER: substrate_app
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+
+    volumes:
+      - substrate-mysql-data:/var/lib/mysql
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD} --silent"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  backend:
+    build:
+      context: ./server
+    image: substrate-backend:1.1
+
+    environment:
+      PORT: 4000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: substrate_app
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: substrate_db
+      CORS_ORIGINS: ""
+
+    ports:
+      - "4000:4000"
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+    image: substrate-frontend:1.1
+
+    ports:
+      - "8080:80"
+
+    depends_on:
+      - backend
+
+volumes:
+  substrate-mysql-data:
+    name: substrate-mysql-data
