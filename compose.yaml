@@ -25,7 +25,10 @@ services:
   backend:
     build:
       context: ./server
-    image: substrate-backend:1.1
+    image: substrate-backend:${IMAGE_TAG:-latest}
+
+    ports:
+      - "127.0.0.1:4000:4000"
 
     environment:
       PORT: 4000
@@ -36,23 +39,9 @@ services:
       DB_NAME: substrate_db
       CORS_ORIGINS: ""
 
-    ports:
-      - "4000:4000"
-
     depends_on:
       mysql:
         condition: service_healthy
-
-  frontend:
-    build:
-      context: .
-    image: substrate-frontend:1.1
-
-    ports:
-      - "8080:80"
-
-    depends_on:
-      - backend
 
 volumes:
   substrate-mysql-data:
