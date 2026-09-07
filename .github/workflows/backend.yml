@@ -6,11 +6,12 @@ on:
       - main
     paths:
       - "server/**"
-      - "deploy/substrate-api.service"
+      - "compose.yaml"
+      - "deploy/nginx.conf"
       - ".github/workflows/backend.yml"
 
-# Two deploys racing on one symlink would leave the box in an
-# unpredictable state.
+# Prevent two deployments from modifying the same EC2 instance
+# at the same time.
 concurrency:
   group: deploy-backend
   cancel-in-progress: false
@@ -20,105 +21,120 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: server/package-lock.json
-
-      # Installing here takes ~2s; the same command on the EC2 instance took
-      # 3 minutes. Every dependency is pure JavaScript - no .node binaries and
-      # no binding.gyp - so the tree built on this x64 Linux runner is
-      # byte-for-byte usable on the x64 Linux host.
-      - name: Install production dependencies
-        run: npm ci --omit=dev --no-audit --no-fund
-        working-directory: server
-
-      - name: Package the release
-        run: |
-          mkdir -p release
-          # --exclude is belt and braces: .env is git-ignored so it is never
-          # in a checkout, and secrets belong in /etc/substrate/api.env.
-          tar -czf release/substrate-api.tar.gz \
-            --exclude='./.env' --exclude='./.env.*' \
-            -C server .
-          cp deploy/substrate-api.service release/
-          ls -lh release/
-
-      - name: Upload release
-        uses: appleboy/scp-action@v0.1.7
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "release/*"
-          target: "/tmp/substrate-release"
-          strip_components: 1
+          command_timeout: 10m
 
-      - name: Activate deployment
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 5m
           script: |
             set -euo pipefail
 
-            ROOT=/var/www/substrate-backend
-            RELEASES="$ROOT/releases"
-            NEW="$RELEASES/$(date +%Y%m%d%H%M%S)"
+            cd ~/substrate-website
 
-            # Unpack beside the running release rather than deleting it.
-            # The old code keeps serving until the symlink flips.
-            sudo mkdir -p "$NEW"
-            sudo tar -xzf /tmp/substrate-release/substrate-api.tar.gz -C "$NEW"
+            echo "==> Syncing repository"
+            git fetch origin main
+            git reset --hard origin/main
 
-            sudo cp /tmp/substrate-release/substrate-api.service \
-              /etc/systemd/system/substrate-api.service
+            echo "==> Starting MySQL"
+            docker compose up -d mysql
 
-            # Only treat current as a rollback target if it is genuinely an
-            # existing symlink; readlink -f happily prints a path that is not
-            # there yet, which would make a first-run rollback point at the
-            # release we are trying to roll away from.
-            PREV=""
-            if [ -L "$ROOT/current" ]; then
-              PREV="$(readlink -f "$ROOT/current")"
-            fi
+            echo "==> Waiting for MySQL to become healthy"
 
-            sudo ln -sfn "$NEW" "$ROOT/current"
-            sudo systemctl daemon-reload
-            sudo systemctl restart substrate-api
+            MYSQL_CONTAINER="$(docker compose ps -q mysql)"
 
-            # Poll instead of sleeping a fixed amount: usually passes on the
-            # first try, and still tolerates a slow start.
-            ok=0
-            for _ in $(seq 1 15); do
-              if curl -fsS --max-time 3 http://127.0.0.1:4000/api/health >/dev/null 2>&1; then
-                ok=1
-                break
-              fi
-              sleep 1
-            done
-
-            if [ "$ok" -ne 1 ]; then
-              echo "::error::health check failed - rolling back"
-              if [ -n "$PREV" ] && [ -d "$PREV" ] && [ "$PREV" != "$NEW" ]; then
-                sudo ln -sfn "$PREV" "$ROOT/current"
-                sudo systemctl restart substrate-api || true
-              fi
-              sudo journalctl -u substrate-api -n 40 --no-pager
+            if [ -z "$MYSQL_CONTAINER" ]; then
+              echo "::error::MySQL container was not created"
+              docker compose ps
               exit 1
             fi
 
-            echo "health: $(curl -fsS http://127.0.0.1:4000/api/health)"
+            for _ in $(seq 1 30); do
+              STATUS="$(docker inspect \
+                --format='{{.State.Health.Status}}' \
+                "$MYSQL_CONTAINER" 2>/dev/null || true)"
 
-            # Keep the three most recent releases so a manual rollback is
-            # just a symlink flip.
-            ls -1dt "$RELEASES"/*/ 2>/dev/null | tail -n +4 | sudo xargs -r rm -rf || true
+              if [ "$STATUS" = "healthy" ]; then
+                echo "MySQL is healthy"
+                break
+              fi
 
-            rm -rf /tmp/substrate-release
+              sleep 2
+            done
+
+            STATUS="$(docker inspect \
+              --format='{{.State.Health.Status}}' \
+              "$MYSQL_CONTAINER" 2>/dev/null || true)"
+
+            if [ "$STATUS" != "healthy" ]; then
+              echo "::error::MySQL did not become healthy"
+              docker compose logs --tail 100 mysql
+              exit 1
+            fi
+
+            echo "==> Building backend image"
+            docker compose build backend
+
+            echo "==> Running database migration"
+            docker compose run --rm backend npm run migrate
+
+            echo "==> Starting backend"
+            docker compose up -d --remove-orphans backend
+
+            echo "==> Waiting for backend"
+
+            for _ in $(seq 1 30); do
+              if curl -fsS --max-time 3 \
+                http://127.0.0.1:4000/api/health >/dev/null 2>&1; then
+                echo "Backend is healthy"
+                break
+              fi
+
+              sleep 2
+            done
+
+            if ! curl -fsS --max-time 3 \
+              http://127.0.0.1:4000/api/health >/dev/null 2>&1; then
+              echo "::error::Backend health check failed"
+              docker compose logs --tail 100 backend
+              exit 1
+            fi
+
+            echo "==> Installing Nginx configuration"
+            sudo cp deploy/nginx.conf \
+              /etc/nginx/sites-available/substrate
+
+            echo "==> Testing Nginx configuration"
+            sudo nginx -t
+
+            echo "==> Reloading Nginx"
+            sudo systemctl reload nginx
+
+            echo "==> Verifying public API path locally"
+
+            for _ in $(seq 1 15); do
+              if curl -fsS --max-time 3 \
+                http://127.0.0.1/api/health >/dev/null 2>&1; then
+                echo "Nginx -> backend is healthy"
+                break
+              fi
+
+              sleep 1
+            done
+
+            if ! curl -fsS --max-time 3 \
+              http://127.0.0.1/api/health; then
+              echo
+              echo "::error::Nginx API health check failed"
+              sudo nginx -t
+              docker compose logs --tail 100 backend
+              exit 1
+            fi
+
+            echo
+            echo "==> Cleaning obsolete Docker resources"
+            docker image prune -f
+
+            echo "==> Deployment successful"
