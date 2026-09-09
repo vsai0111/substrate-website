@@ -1,5 +1,8 @@
 {
   "name": "substrate-studio",
+  "engines": {
+    "node": "24"
+  },
   "private": true,
   "version": "1.0.0",
   "type": "module",
