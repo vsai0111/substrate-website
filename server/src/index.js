@@ -57,8 +57,8 @@ async function start() {
     process.exit(1)
   }
 
-  const server = app.listen(PORT, () => {
-    console.log(`[api] listening on http://127.0.0.1:${PORT}`)
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[api] listening on http://0.0.0.0:${PORT}`)
   })
 
   const shutdown = async (signal) => {
